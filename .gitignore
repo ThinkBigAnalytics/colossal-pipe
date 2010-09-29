@@ -1,0 +1,12 @@
+.DS_Store
+.settings/
+.local.*
+build
+target
+build-eclipse
+junit*.properties
+*.hprof
+.gradle
+src/generated
+.classpath
+.project
