@@ -11,6 +11,7 @@ dependencies {
     compile group:'org.apache.hadoop', name: 'hadoop-core', version: '0.20.2'
     compile group: 'org.apache.avro', name:'avro', version:'1.5.0-SNAPSHOT' 
     compile group:'org.apache.commons', name:'commons-email', version: '1.2'
+    compile group:'commons-lang', name:'commons-lang', version: '2.4'    
     compile group: 'args4j', name: 'args4j', version: '2.0.12'
     compile group: 'joda-time', name: 'joda-time', version: '1.6.1'
     compile group:'com.thoughtworks.paranamer', name:'paranamer', version:'2.2'
