@@ -19,7 +19,8 @@ You also need to declare the final outputs that your pipeline needs to produce:
 analysis.produces(output);
 
 Finally you define the phases (jobs) that produce outputs from their inputs:
-ColPhase analyze = new ColPhase().map(AnalysisMapper.class).reduce(AnalysisReducer.class).groupBy("id,str").reads(input).writes(output);
+ColPhase analyze = new ColPhase().map(AnalysisMapper.class).reduce(AnalysisReducer.class)
+   .groupBy("id,str").sortBy("count desc").reads(input).writes(output);
 
 Mappers and reducers in colossal pipe work on objects, both for input and output. A mapper looks like this:
 
@@ -38,7 +39,7 @@ public static class AnalysisMapper extends BaseMapper<LogRecord, ReportRecord> {
 A reducer looks like this:
 public static class AnalysisReducer extends BaseReducer<ReportRecord, ReportRecord> {
     @Override
-    public void reduce(Iterable<ReportRecord> in, ColContext<ReportRecord> context) {
+    public void reduce(Iterable<ReportRecord> in, ReportRecord out, ColContext<ReportRecord> context) {
         ReportRecord out = null;
         for (ReportRecord rec : in) {
             if (out == null) {
@@ -51,5 +52,5 @@ public static class AnalysisReducer extends BaseReducer<ReportRecord, ReportReco
     }
 }
 
-The default file format for Colossal Pipe is Avro, but it has support for text output and soon we’ll add pluggable formats to support a variety of input and output formats. Currently, you use Avro schemas to define your objects, then use the Avro code generation tool to create Java classes to represent them. As soon as Avro effectively supports reflection-based map/reduce we'll also support reflective access to your Java classes, letting them define the file schema instead.
+The default file format for Colossal Pipe is Avro, but it has support for text and JSON output and soon we'll add pluggable formats to support a variety of input and output formats. Currently, you use Avro schemas to define your objects, then use the Avro code generation tool to create Java classes to represent them. As soon as Avro effectively supports reflection-based map/reduce we'll also support reflective access to your Java classes, letting them define the file schema instead.
  
