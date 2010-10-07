@@ -82,7 +82,12 @@ abstract class ColHadoopReducerBase<K, V, OUT, KO, VO> extends MapReduceBase imp
         this.context = new ColContext<OUT>(this.collector, reporter);
 
         reduceIterable.values = values;
-        reducer.reduce(reduceIterable, context);
+        reducer.reduce(reduceIterable, out, context);
+    }
+
+    @Override
+    public void close() throws IOException {
+        reducer.close(out, context);
     }
 
 }

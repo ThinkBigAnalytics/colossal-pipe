@@ -21,12 +21,10 @@ package colossal.pipe;
 
 import java.io.IOException;
 
-import org.apache.avro.mapred.AvroOutputFormat;
-import org.apache.avro.mapred.AvroWrapper;
+import org.apache.avro.mapred.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.*;
-import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.mapred.*;
 
 public class ColFile<T> {
     private ColPhase producer;
@@ -41,12 +39,22 @@ public class ColFile<T> {
                 conf.setOutputFormat(TextOutputFormat.class);
                 conf.setOutputKeyClass(String.class);
             }
+            
+            @Override
+            public void setupInput(JobConf conf) {
+                conf.setInputFormat(TextInputFormat.class);                
+            }
         },
         JSON_FORMAT {
             @Override
             public void setupOutput(JobConf conf) {
                 conf.setOutputFormat(TextOutputFormat.class);                
                 conf.setOutputKeyClass(String.class);
+            }
+
+            @Override
+            public void setupInput(JobConf conf) {
+                conf.setInputFormat(TextInputFormat.class);                
             }
         },
         AVRO_FORMAT {
@@ -55,9 +63,16 @@ public class ColFile<T> {
                 conf.setOutputFormat(AvroOutputFormat.class);
                 conf.setOutputKeyClass(AvroWrapper.class);
             }
+
+            @Override
+            public void setupInput(JobConf conf) {
+                conf.setInputFormat(AvroInputFormat.class);        
+            }
         };
 
         public abstract void setupOutput(JobConf conf);
+
+        public abstract void setupInput(JobConf conf);
     }
 
     @Deprecated
@@ -72,7 +87,7 @@ public class ColFile<T> {
     public boolean exists(Configuration conf) {
         Path dfsPath = new Path(path);
         try {
-            FileSystem fs = dfsPath.getFileSystem(conf);
+            FileSystem fs = dfsPath.getFileSystem(conf); 
             return fs.exists(dfsPath);
         }
         catch (IOException e) {
@@ -80,11 +95,31 @@ public class ColFile<T> {
         }
     }
 
-    public boolean isObsolete() {
-        // this needs to be smart - we should encode in the file metadata the dependents and their dates used
-        // so we can verify that any existing antecedent is not newer and declare victory...
-        // TODO Auto-generated method stub
-        return false; // needs more work!
+    public boolean isObsolete(Configuration conf) {
+        Path dfsPath = new Path(path);
+        try {
+            FileSystem fs = dfsPath.getFileSystem(conf); 
+            // this needs to be smart - we should encode in the file metadata the dependents and their dates used
+            // so we can verify that any existing antecedent is not newer and declare victory...
+            if (fs.exists(dfsPath)) {
+                FileStatus[] statuses = fs.listStatus(dfsPath);
+                for (FileStatus status : statuses) {
+                    if (!status.isDir()) {
+                        if (format!=Formats.AVRO_FORMAT || status.getPath().toString().endsWith(".avro")) {
+                            return false; // may check for extension for other types
+                        }
+                    } else {
+                        if (!status.getPath().toString().endsWith("/_logs") && !status.getPath().toString().endsWith("/_temporary")) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true; // needs more work!
+        }
+        catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public ColPhase getProducer() {
@@ -113,10 +148,17 @@ public class ColFile<T> {
         try {
             Path dfsPath = new Path(path);
             FileSystem fs = dfsPath.getFileSystem(conf);
-            fs.mkdirs(dfsPath);
-            ContentSummary cs = fs.getContentSummary(dfsPath);
-            if (cs.getDirectoryCount() > 1) {
-                throw new IllegalArgumentException("Trying to overwrite directory with child directories: " + path);
+            if (fs.exists(dfsPath)) {
+                FileStatus[] statuses = fs.listStatus(dfsPath);
+                for (FileStatus status : statuses) {
+                    if (status.isDir()) {
+                        if (!status.getPath().toString().endsWith("/_logs") && !status.getPath().toString().endsWith("/_temporary")) {
+                            throw new IllegalArgumentException("Trying to overwrite directory with child directories: " + path);
+                        }
+                    }
+                }
+            } else {            
+                fs.mkdirs(dfsPath);
             }
             fs.delete(dfsPath, true);
         }
@@ -174,5 +216,9 @@ public class ColFile<T> {
         catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void setupInput(JobConf conf) {
+        format.setupInput(conf);// TODO Auto-generated method stub        
     }
 }

@@ -19,9 +19,13 @@
  */
 package colossal.pipe;
 
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.*;
 import java.util.concurrent.*;
 
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.mapred.JobConf;
 
 import colossal.util.Alerter;
@@ -38,8 +42,21 @@ public class ColPipe {
     public ColPipe() {        
     }
     
+    @SuppressWarnings("deprecation")
     public ColPipe(Class<?> jarClass) {
         baseConf.setJarByClass(jarClass);
+        baseConf.set("mapred.job.reuse.jvm.num.tasks", "-1");
+        try {
+            FileSystem fs = FileSystem.get(new URI("/"), baseConf);
+            FileSystem localfs = FileSystem.getLocal(baseConf);
+            if (fs.equals(localfs)) {
+                baseConf.setNumReduceTasks(2); // run only 2 reducers for local
+            } else {
+                baseConf.setNumReduceTasks(32); // default to 32 reducers - need to tune this
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public ColPipe produces(List<ColFile> outputs) {
@@ -108,8 +125,7 @@ public class ColPipe {
     }
 
     private List<PhaseError> submit(final PipePlan plan, final ExecutorService execution, final List<PhaseError> errors) {
-        plan.plan();
-        Set<ColPhase> next = plan.getNextProcesses();
+        List<ColPhase> next = plan.getNextProcesses();
         if (next != null) {        
             for (final ColPhase process : next) {
                 execution.submit(new Runnable() {
@@ -126,6 +142,7 @@ public class ColPipe {
                             }
                             else {
                                 plan.updated(process);
+                                plan.plan();
                                 submit(plan, execution, Collections.synchronizedList(errors));                            
                             }
                         } finally {
@@ -148,14 +165,17 @@ public class ColPipe {
 
     private PipePlan generatePlan(List<PhaseError> errors) {
         Set<ColFile> toGenerate = new HashSet<ColFile>(writes);
-        Set<ColFile> generated = new HashSet<ColFile>();        
+        Set<ColFile> generated = new HashSet<ColFile>();
+        Set<ColPhase> planned = new HashSet<ColPhase>();
+        Set<ColFile> obsolete = new HashSet<ColFile>();
+        Set<ColFile> missing = new HashSet<ColFile>();
         // Map<DistFile,Collection<DistFile>> dependencies;
         PipePlan plan = new PipePlan();
         while (!toGenerate.isEmpty()) {
             ColFile file = toGenerate.iterator().next();
             toGenerate.remove(file);
             boolean exists = file.exists(baseConf);
-            if (exists && !file.isObsolete() && (!forceRebuild || file.getProducer() == null)) {                
+            if (exists && !file.isObsolete(baseConf) && (!forceRebuild || file.getProducer() == null)) {                
                 if (!generated.contains(file)) {
                     System.out.println("File: "+file.getPath()+" exists and is up to date.");
                     // ok already
@@ -164,20 +184,43 @@ public class ColPipe {
                 }
             }
             else {
-                ColPhase process = file.getProducer();
-                plan.fileCreateWith(file, process);
-                if (process == null) {
+                ColPhase phase = file.getProducer();
+                plan.fileCreateWith(file, phase);
+                if (phase == null) {
                     errors.add(new PhaseError("Don't know how to generate " + file.getPath()));
                 } else {
-                    System.out.println("File: "+file.getPath()+(exists ? " is obsolete" : " is missing")+" and will be generated from "+process.getSummary());
-                    List<ColFile> inputs = process.getInputs();
+                    if (!exists)
+                        missing.add(file);
+                    else if (file.isObsolete(baseConf))
+                        obsolete.add(file);
+                    List<ColFile> inputs = phase.getInputs();
                     if (inputs != null) {
                         for (ColFile input : inputs) {
                             toGenerate.add(input);
-                            plan.processReads(process, input);
+                            plan.processReads(phase, input);
                         }
                     }
-                    process.plan(this);
+                    if (!planned.contains(phase)) {
+                        phase.plan(this);
+                        planned.add(phase);
+                    }
+                }
+            }
+        }
+        List<List<ColPhase>> waves = plan.plan();
+
+        // partially ordered so we always print a producer before a consumer
+        for (List<ColPhase> wave : waves) {
+            for (ColPhase phase : wave) {
+                System.out.println("Will run "+phase.getSummary()+", producing: ");
+                for (ColFile output : phase.getOutputs()) {
+                    System.out.print("  "+output.getPath());
+                    if (missing.contains(output))
+                        System.out.println(": missing");
+                    else if (obsolete.contains(output))
+                        System.out.println(": obsolete");
+                    else
+                        System.out.println();
                 }
             }
         }

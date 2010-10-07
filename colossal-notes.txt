@@ -1,0 +1,80 @@
+Functionality:  
+error support: cleanup output and emit meaningful alerts (partially done)
+when phases fail
+summarize report steps by phase phase XYZ producing a,b,c,d...
+reflection Avro support
+optimized runtime codegen for reflection Avro
+better validation of phase setup
+clean up setting config on pipeline (reuse with phase setup)
+validate grouping/sort order is preserved (would be easier with an Avro trailer...)
+ability to force rebuilds - done
+partial rebuilds / interactive mode
+obsolescence checking, with transitive closure stored in output file
+better information about pending builds
+both partitioning and subsorting (so you can groupBy and sortBy)
+output files of non-Avro - done for raw text, need to add JSON and maybe xSV 
+input files of non-Avro
+basic joins
+support for total order sorting
+optimizer
+multiple reducers
+join optimization
+improved reporting on job results
+review input files, identify filtered out files
+
+Simple programming API:
+
+join should be instead of map/reduce - later optimization could be smarter
+
+join(out, context, in1, in2, ...).on("key1", "key2", ...)
+
+simple implementation is to pre-sort inputs by keys if not already in order
+then do merge-sort in mapper
+
+the other option is a reduce-side join, which can be reasonable if you have subsorting/small groups
+ 
+reduce-side joins suck because you end up with Hive's approach of in-memory records for all but one join item 
+(implementat
+
+mapgroup is an optimization option - 
+you run a reducer map-side, relying on the fact that the input is already sorted
+
+simple implementation is mapper dumps each input type into a channel with a given key type
+for joins 
+, subsorted by 
+
+
+
+map(in, out, context)
+
+reduce(in, out, context)
+
+reduce can accept a Join as input - you can emit output from the mapper appropriately 
+map(In1 in) {
+   context.write(out, "left")
+context.write(out, "right")
+
+Multiple inputs & outputs in Hadoop:
+
+map(Superclassin in, Superclassout out)
+
+map(in1, in2, in3
+
+support for merge join:
+join(out, Iterable in1, Iterable in2, ...) ?
+map(in, out)
+
+mapGroup()
+
+1 or more of:
+reduce(in, out) 
+
+each input gets fed to each reduce that matches (e.g., you could split by input type to subset to 1 or a few reducers)
+
+allow joining in reduce phase (supports hash join, in memory join)
+reduceJoin(out, left, right, ...)
+
+Optimizations:
+custom output key comparator
+runtime code gen for reading & writing Avro reflection types
+runtime code gen for creating keys

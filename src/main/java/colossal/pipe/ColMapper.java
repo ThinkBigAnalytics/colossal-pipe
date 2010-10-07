@@ -23,4 +23,6 @@ import org.apache.hadoop.conf.*;
 
 public interface ColMapper<IN,OUT> extends Configurable {
     public void map(IN in, OUT out, ColContext<OUT> context);
+    
+    public void close(OUT out, ColContext<OUT> context);
 }

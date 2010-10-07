@@ -22,5 +22,7 @@ package colossal.pipe;
 import org.apache.hadoop.conf.Configurable;
 
 public interface ColReducer <IN,OUT> extends Configurable {
-    public void reduce(Iterable<IN> in, ColContext<OUT> context);
+    public void reduce(Iterable<IN> in, OUT out, ColContext<OUT> context);
+    
+    public void close(OUT out, ColContext<OUT> context);
 }

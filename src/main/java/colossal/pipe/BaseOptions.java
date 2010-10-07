@@ -24,6 +24,7 @@ import static org.kohsuke.args4j.ExampleMode.ALL;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.util.GenericOptionsParser;
 import org.joda.time.*;
+import org.joda.time.base.BaseDateTime;
 import org.joda.time.format.*;
 import org.kohsuke.args4j.*;
 
@@ -152,4 +153,5 @@ public class BaseOptions {
             return parseDateTime(start);
         return null;
     }
+
 }

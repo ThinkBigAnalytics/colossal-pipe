@@ -29,5 +29,9 @@ public class BaseMapper<IN,OUT> extends Configured implements ColMapper<IN,OUT> 
         context.write((OUT)in);
     }
 
+    @Override
+    public void close(OUT out, ColContext<OUT> context) {
+        // no op by default
+    }
 
 }

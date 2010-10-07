@@ -21,6 +21,7 @@ package colossal.pipe;
 
 import static org.junit.Assert.*;
 
+import java.util.List;
 import java.util.Set;
 
 import org.junit.Before;
@@ -88,7 +89,7 @@ public class PipePlanTests {
         plan.processReads(p2, f3);
         plan.processReads(p1, f4);
         plan.plan();
-        Set<ColPhase> np = plan.getNextProcesses();
+        List<ColPhase> np = plan.getNextProcesses();
         assertTrue(np.contains(p2));
         assertEquals(1, np.size());
         

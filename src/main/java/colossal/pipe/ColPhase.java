@@ -43,12 +43,19 @@ public class ColPhase {
     public static final String COMBINER = "col.phase.combiner";
     public static final String MAP_OUT_KEY_SCHEMA = "col.phase.map.out.key.schema";
     public static final String MAP_OUT_VALUE_SCHEMA = "col.phase.map.out.value.schema";
+    public static final String MAP_IN_CLASS = "col.phase.map.input.class";
 
     /*
      * we *allow* for multiple reads, writes, maps, combines, and reduces this would support *manual* optimization of merging we
      * hope to never use them - instead we'll have simple mappings and rely on an optimizer that will let us do multi input-output
      */
+    /** files read by main map/reduce pipeline */
+    private List<ColFile> mainReads;
+    /** any files read, including side writes */
     private List<ColFile> reads;
+    /** files written by main map/reduce pipeline */
+    private List<ColFile> mainWrites;
+    /** any files written, including side writes */
     private List<ColFile> writes;
     private Class<? extends ColMapper>[] mappers;
     private Class<? extends ColReducer>[] combiners;
@@ -59,10 +66,10 @@ public class ColPhase {
     private String name;
     private JobConf conf;
     private Integer deflateLevel;
-    private Map<String, String> textMeta = new TreeMap<String,String>();    
+    private Map<String, String> textMeta = new TreeMap<String,String>();
 
     public ColPhase() {
-    }
+    }   
 
     public ColPhase(String name) {
         this.name = name;
@@ -73,11 +80,11 @@ public class ColPhase {
     }
 
     public ColFile output(int n) {
-        if (writes == null) {
+        if (mainWrites == null) {
             // this *should* set up a promise to get the nth output ...
             throw new UnsupportedOperationException("please define outputs first, for now");
         }
-        return writes.get(n);
+        return mainWrites.get(n);
     }
 
     public ColPhase reads(ColFile... inputs) {
@@ -85,11 +92,32 @@ public class ColPhase {
     }
 
     public ColPhase reads(Collection<ColFile> inputs) {
-        if (reads == null) {
-            reads = new ArrayList<ColFile>(inputs);
+        if (mainReads == null) {
+            mainReads = new ArrayList<ColFile>(inputs);
         }
         else {
-            reads.addAll(inputs);
+            mainReads.addAll(inputs);
+        }
+        return readsSide(inputs);
+    }
+
+    /**
+     * side writes are files that are written but not as the output of a map/reduce step, instead they are written by tasks or
+     * processes through independent data path
+     */
+    public ColPhase readsSide(ColFile... sideFiles) {
+        return readsSide(Arrays.asList(sideFiles));        
+    }
+    
+    /**
+     * side writes are files that are written but not as the output of a map/reduce step, instead they are written by tasks or
+     * processes through independent data path
+     */
+    public ColPhase readsSide(Collection<ColFile> sideFiles) {
+        if (this.reads == null) {
+            this.reads = new ArrayList<ColFile>(sideFiles);
+        } else {
+            this.reads.addAll(sideFiles);
         }
         return this;
     }
@@ -99,18 +127,40 @@ public class ColPhase {
     }
 
     public ColPhase writes(Collection<ColFile> outputs) {
-        if (writes == null) {
-            writes = new ArrayList<ColFile>(outputs);
+        writesSide(outputs);
+        if (mainWrites == null) {
+            mainWrites = new ArrayList<ColFile>(outputs);
         }
         else {
-            writes.addAll(outputs);
+            mainWrites.addAll(outputs);
         }
-        for (ColFile file : outputs) {
+        return this;
+    }
+
+    /**
+     * side writes are files that are written but not as the output of a map/reduce step, instead they are written by tasks or
+     * processes through independent data path
+     */
+    public ColPhase writesSide(ColFile... sideFiles) {
+        return writesSide(Arrays.asList(sideFiles));        
+    }
+    
+    /**
+     * side writes are files that are written but not as the output of a map/reduce step, instead they are written by tasks or
+     * processes through independent data path
+     */
+    public ColPhase writesSide(Collection<ColFile> sideFiles) {
+        for (ColFile file : sideFiles) {
             ColPhase p = file.getProducer();
             if (p != null && p != this) {
                 throw new IllegalStateException("File " + file + " has multiple producers " + this + ", " + p);
             }
             file.setProducer(this);
+        }
+        if (this.writes == null) {
+            this.writes = new ArrayList<ColFile>(sideFiles);
+        } else {
+            this.writes.addAll(sideFiles);
         }
         return this;
     }
@@ -171,7 +221,8 @@ public class ColPhase {
         }
 
         Schema mapin = null;
-        Class mapOutClass = null;
+        Class<?> mapOutClass = null;
+        Class<?> mapInClass = null;
 
         Class<? extends ColMapper> mapperClass = null;
         if (mappers != null && mappers.length > 0) {
@@ -181,14 +232,27 @@ public class ColPhase {
             else {
                 mapperClass = mappers[0];
                 conf.set(MAPPER, mapperClass.getName());
+                Class<?> foundIn = null;
                 for (Method m : mapperClass.getMethods()) {
                     if ("map".equals(m.getName())) {
                         Class<?>[] paramTypes = m.getParameterTypes();
                         if (paramTypes.length >= 3) {
                             try {
-                                mapin = getSchema(paramTypes[0].newInstance());
-                                mapOutClass = paramTypes[1];
-                                break;
+                                // prefer subclass methods to superclass methods
+                                if (foundIn == null || foundIn.isAssignableFrom(m.getDeclaringClass())) {
+                                    if (paramTypes[0] == Object.class) {
+                                        if (foundIn == m.getDeclaringClass()) {
+                                            // skip the generated "override" of the generic method
+                                            continue;
+                                        }
+                                    } else {
+                                        //TODO: handle cases beyond Object where output isn't defined    
+                                        mapInClass = paramTypes[0];
+                                        mapin = getSchema(paramTypes[0].newInstance());
+                                    }
+                                    mapOutClass = paramTypes[1];
+                                    foundIn = m.getDeclaringClass();
+                                }
                             }
                             catch (Exception e) {
                                 errors.add(new PhaseError(e, "Can't create mapper: " + mapperClass));
@@ -199,7 +263,6 @@ public class ColPhase {
             }
         }
 
-        Schema reduceout = null;
         if (combiners != null && combiners.length > 0) {
             if (combiners.length > 1) {
                 errors.add(new PhaseError("Colossal phase/avro currently only supports one combiner per process: " + name));
@@ -209,6 +272,7 @@ public class ColPhase {
                 conf.setCombinerClass(ColHadoopCombiner.class);
             }
         }
+        Schema reduceout = null;
         Class<?> reduceOutClass = null;
         Class<? extends ColReducer> reducerClass = null;
         if (reducers != null && reducers.length > 0) {
@@ -218,12 +282,20 @@ public class ColPhase {
             else {
                 reducerClass = reducers[0];
                 conf.set(REDUCER, reducers[0].getName());
+                Class<?> foundIn = null;
                 for (Method m : reducerClass.getMethods()) {
                     if ("reduce".equals(m.getName())) {
                         Class<?>[] paramTypes = m.getParameterTypes();
                         if (paramTypes.length >= 3) {
-                            reduceOutClass = paramTypes[1];
-                            break;
+                            if (foundIn == null || foundIn.isAssignableFrom(m.getDeclaringClass())) {
+                                if (foundIn == m.getDeclaringClass() && paramTypes[1] == Object.class) {
+                                    // skip the generated "override" of the generic method
+                                    continue;
+                                }
+                                // prefer subclass methods to superclass methods
+                                reduceOutClass = paramTypes[1];
+                                foundIn = m.getDeclaringClass();                                
+                            }
                         }
                     }
                 }
@@ -231,8 +303,9 @@ public class ColPhase {
             }
         }
         Object reduceOutProto = null;
-        if (reduceOutClass == null && writes != null && writes.size() > 0) {
-            reduceOutProto = writes.get(0).getPrototype();
+        //TODO: handle cases beyond Object where output isn't defined
+        if ((reduceOutClass == null || reduceOutClass == Object.class) && mainWrites != null && mainWrites.size() > 0) {
+            reduceOutProto = mainWrites.get(0).getPrototype();
             reduceOutClass = reduceOutProto.getClass();
         } else {
             try {
@@ -248,11 +321,11 @@ public class ColPhase {
         conf.set(REDUCE_OUT_CLASS, reduceOutClass.getName());
 
         Schema valueSchema = null;
-        if (writes.size() != 1) {
+        if (mainWrites.size() != 1) {
             errors.add(new PhaseError("Colossal phase/avro currently only supports one output per process: " + name));
         }
         else {
-            ColFile output = writes.get(0);
+            ColFile output = mainWrites.get(0);
             AvroOutputFormat.setOutputPath(conf, new Path(output.getPath()));
 
             if (output.getPrototype() != null) {
@@ -275,10 +348,10 @@ public class ColPhase {
             AvroOutputFormat.setDeflateLevel(conf, deflateLevel);
 
         Object proto = null;
-        if (reads != null) {
-            Path[] inPaths = new Path[reads.size()];
+        if (mainReads != null && mainReads.size() > 0) {
+            Path[] inPaths = new Path[mainReads.size()];
             int i = 0;
-            for (ColFile file : reads) {
+            for (ColFile file : mainReads) {
                 inPaths[i++] = new Path(file.getPath());
                 Object myProto = file.getPrototype();
                 if (myProto == null) {
@@ -295,19 +368,24 @@ public class ColPhase {
                 }
             }
             AvroInputFormat.setInputPaths(conf, inPaths);
+
             if (mapin == null) {
                 if (proto == null){
                     errors.add(new PhaseError("Undefined input format"));
                 } else {
                     mapin = getSchema(proto);
+                    mapInClass = proto.getClass();
                 }
             }
+            mainReads.get(0).setupInput(conf);
+            if (conf.get("mapred.input.format.class") == null)
+                conf.setInputFormat(AvroInputFormat.class);        
         }
         
         Schema mapValueSchema = null;
         try {
-            if (mapOutClass == null) {
-                // this implies no mapper class
+            //TODO: handle cases beyond Object where input isn't defined
+            if (mapOutClass == null || mapOutClass == Object.class) {
                 assert mapperClass == null;
                 if (proto != null) {
                     mapOutClass = proto.getClass();
@@ -320,7 +398,7 @@ public class ColPhase {
                     } else {
                         // can't get it from reducer input - that's just Iterable
                         String fname = "no input file specified";
-                        if (reads != null && reads.size()>0) fname=reads.get(0).getPath();
+                        if (mainReads != null && mainReads.size()>0) fname=mainReads.get(0).getPath();
                         errors.add(new PhaseError("No input format specified for identity mapper - specify it on input file "+fname));
                     }                    
                 }
@@ -334,6 +412,7 @@ public class ColPhase {
         }
 
         conf.set(MAP_OUT_CLASS, mapOutClass.getName());
+        conf.set(MAP_IN_CLASS, mapInClass.getName());
         // XXX validation!
         if (proto != null) {
             conf.set(AvroJob.INPUT_SCHEMA, getSchema(proto).toString());
@@ -347,7 +426,7 @@ public class ColPhase {
 
         // TODO: add support for sortBy
         if (groupBy != null)
-            conf.set(MAP_OUT_KEY_SCHEMA, groupFields(mapValueSchema, groupBy).toString());
+            conf.set(MAP_OUT_KEY_SCHEMA, group(mapValueSchema, groupBy).toString());
         if (groupBy != null) {
             conf.set(GROUP_BY, groupBy);
             AvroJob.setOutputMeta(conf, GROUP_BY, groupBy);
@@ -356,9 +435,6 @@ public class ColPhase {
             conf.set(SORT_BY, sortBy);
             AvroJob.setOutputMeta(conf, SORT_BY, sortBy);
         }
-
-        if (conf.get("mapred.input.format.class") == null)
-            conf.setInputFormat(AvroInputFormat.class);        
 
         conf.setMapOutputKeyClass(AvroKey.class);
         conf.setMapOutputValueClass(AvroValue.class);
@@ -464,7 +540,7 @@ public class ColPhase {
     }
 
     public String getSummary() {
-        return "mapper " + getMapName() + " reading " + reads.get(0).getPath() + " reducer " + getReduceName();
+        return "mapper " + getMapName() + " reading " + mainReads.get(0).getPath() + " reducer " + getReduceName();
     }
 
     private String getReduceName() {
@@ -476,8 +552,9 @@ public class ColPhase {
     }
 
     private String getDetail() {
-        return String.format("map: %s\nreduce: %s\nreading: %s\nwriting: %s\ngroup by:%s", getMapName(), getReduceName(), reads
-                .get(0).getPath(), writes.get(0).getPath(), groupBy);
+        return String.format("map: %s\nreduce: %s\nreading: %s\nwriting: %s\ngroup by:%s", getMapName(), getReduceName(), mainReads
+                .get(0).getPath(), mainWrites.get(0).getPath(), groupBy);
     }
+
 
 }

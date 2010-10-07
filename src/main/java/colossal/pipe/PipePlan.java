@@ -27,7 +27,7 @@ class PipePlan {
     private Map<ColPhase, Set<ColFile>> processDeps = new LinkedHashMap<ColPhase, Set<ColFile>>();
     private Set<ColFile> prebuilt = new HashSet<ColFile>();
     private Set<ColPhase> failed = new HashSet<ColPhase>();
-    private Set<ColPhase> nextProcesses;
+    private List<List<ColPhase>> waves = new ArrayList<List<ColPhase>>();
     private Set<ColPhase> executing = new HashSet<ColPhase>();
 
     public synchronized void fileCreateWith(ColFile file, ColPhase process) {
@@ -63,11 +63,11 @@ class PipePlan {
         // could incrementally update plan, but for now we just do it in batch
     }
     
-    public synchronized void plan() {        
-        Set<ColFile> toPlan = new HashSet<ColFile>(fileDeps.keySet());        
-        nextProcesses = null;
+    public synchronized List<List<ColPhase>> plan() {
+        Set<ColFile> toPlan = getFileDependencies();
+        waves.clear();
         if (!failed.isEmpty())
-            return; // don't run anything else in a failed job
+            return null; // don't run anything else in a failed job
 
         // pull out all the leaf nodes (i.e., those with no unplanned dependencies) as another parallel wave that can execute
         // this doesn't specify exact scheduling as processes finish but provides more parallelism than pure serial operation 
@@ -95,26 +95,25 @@ class PipePlan {
                 }
                 throw new IllegalStateException("Cyclic dependency among files: "+cycle);
             }
-            for (ColFile file : wave)
+            List<ColPhase> nextWave = new ArrayList<ColPhase>();
+            for (ColFile file : wave) {
                 toPlan.remove(file);
-            if (nextProcesses == null) {
-                nextProcesses = new HashSet<ColPhase>();
-                // all that really matters is the initial wave - after that execute tasks when they aren't dependent
-                // that can be done by re-planning...
-                for (ColFile file : wave) {
-                    // we should really score these and order them by some kind of priority
-                    // for now we submit everything that can be done in parallel
-                    nextProcesses.add(file.getProducer());
-                }
-            }
+            
+                // we should really score these and order them by some kind of priority
+                // for now we submit everything that can be done in parallel
+                if (!nextWave.contains(file.getProducer()))
+                    nextWave.add(file.getProducer());
+            }            
+            waves.add(nextWave);
         }
+        return waves;
     }
     
     /**
      * Must call AFTER calling plan.
      */
-    public synchronized Set<ColPhase> getNextProcesses() {
-        return nextProcesses==null ? null : Collections.unmodifiableSet(nextProcesses);
+    public synchronized List<ColPhase> getNextProcesses() {
+        return (waves==null || waves.isEmpty()) ? null : Collections.unmodifiableList(waves.get(0));
     }
 
     public synchronized void executing(ColPhase process) {
@@ -123,5 +122,9 @@ class PipePlan {
 
     public synchronized boolean isComplete() {
         return executing.isEmpty() && (!failed.isEmpty() || fileDeps.isEmpty());
+    }
+
+    public Set<ColFile> getFileDependencies() {
+        return new HashSet<ColFile>(fileDeps.keySet());
     }
 }

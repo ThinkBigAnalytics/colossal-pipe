@@ -24,11 +24,15 @@ import org.apache.hadoop.conf.Configured;
 public class BaseReducer<IN,OUT> extends Configured implements ColReducer<IN,OUT> {
     /** Override this method for a mapper */      
     @SuppressWarnings("unchecked")
-    public void reduce(Iterable<IN> in, ColContext<OUT> context) {
+    public void reduce(Iterable<IN> in, OUT out, ColContext<OUT> context) {
         for (IN i : in) { 
             context.write((OUT)i);
         }
     }
 
+    @Override
+    public void close(OUT out, ColContext<OUT> context) {
+        // no op by default
+    }
 
 }
