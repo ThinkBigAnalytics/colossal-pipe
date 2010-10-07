@@ -480,7 +480,6 @@ public class ColPhase {
             }
 
             if (reads != null) {
-                Path[] inPaths = new Path[reads.size()];
                 int i = 0;
                 for (ColFile file : reads) {
                     // record inputs, to allow determination of obsolescence
@@ -553,8 +552,8 @@ public class ColPhase {
     }
 
     private String getDetail() {
-        return String.format("map: %s\nreduce: %s\nreading: %s\nwriting: %s\ngroup by:%s", getMapName(), getReduceName(), mainReads
-                .get(0).getPath(), mainWrites.get(0).getPath(), groupBy);
+        return String.format("map: %s\nreduce: %s\nreading: %s\nwriting: %s\ngroup by:%s%s", getMapName(), getReduceName(), mainReads
+                .get(0).getPath(), mainWrites.get(0).getPath(), groupBy, (sortBy == null ? "" : "\nsort by:"+sortBy));
     }
 
 
