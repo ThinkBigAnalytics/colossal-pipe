@@ -35,13 +35,13 @@ public class ReflectionKeyExtractor<OUT> implements KeyExtractor<GenericData.Rec
         String[] sortFields = sortBy==null ? new String[0] : sortBy.split(",");
         fieldNames = new ArrayList<String>(groupFields.length + sortFields.length);
         
-        addFieldnames(groupFields);
-        addFieldnames(sortFields);
+        addFieldnames(fieldNames, groupFields);
+        addFieldnames(fieldNames, sortFields);
         
         keySchema = ColPhase.groupFields(schema, fieldNames);
     }
 
-    private void addFieldnames(String[] groupFields) {
+    public static void addFieldnames(List<String> fieldNames, String[] groupFields) {
         for (String name : groupFields) {
             String[] parts = name.trim().split("\\s", 2); // skip asc/desc
             fieldNames.add(parts[0]);            

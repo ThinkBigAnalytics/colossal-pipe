@@ -19,8 +19,8 @@
  */
 package colossal.pipe;
 
-interface KeyExtractor<K,V> {
 
+interface KeyExtractor<K,V> {
     K getProtypeKey();
 
     void setKey(V value, K key);

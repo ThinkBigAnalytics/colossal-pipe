@@ -96,7 +96,7 @@ public class ColHadoopMapper<KEY, VALUE, IN, OUT, KO, VO> extends MapReduceBase 
             this.collector = collector;
             this.extractor = extractor;
             key = extractor.getProtypeKey();
-            keyWrapper.datum(key);
+            keyWrapper.datum(key);            
         }
 
         public void collect(OUT datum) throws IOException {
@@ -126,7 +126,7 @@ public class ColHadoopMapper<KEY, VALUE, IN, OUT, KO, VO> extends MapReduceBase 
             mapper.map((IN)((Text)value).toString(), out, context);
         } else if (isJsonInput) {
             String json = ((Text)value).toString();
-            // not yet implemented - json to avro...
+            // inefficient implementation of json to avro...
             // more efficient would be JsonToClass.jsonToRecord:
             //            mapper.map((IN) JsonToClass.jsonToRecord(json, inSchema), out, context);
 

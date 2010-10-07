@@ -432,6 +432,7 @@ public class ColPhase {
             AvroJob.setOutputMeta(conf, GROUP_BY, groupBy);
         }
         if (sortBy != null) {
+            conf.setPartitionerClass(AvroGroupPartitioner.class);
             conf.set(SORT_BY, sortBy);
             AvroJob.setOutputMeta(conf, SORT_BY, sortBy);
         }
