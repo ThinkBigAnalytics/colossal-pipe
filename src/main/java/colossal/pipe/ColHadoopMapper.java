@@ -126,6 +126,7 @@ public class ColHadoopMapper<KEY, VALUE, IN, OUT, KO, VO> extends MapReduceBase 
             mapper.map((IN)((Text)value).toString(), out, context);
         } else if (isJsonInput) {
             String json = ((Text)value).toString();
+            if (json.startsWith("#")) return; // skip comment
             // inefficient implementation of json to avro...
             // more efficient would be JsonToClass.jsonToRecord:
             //            mapper.map((IN) JsonToClass.jsonToRecord(json, inSchema), out, context);
