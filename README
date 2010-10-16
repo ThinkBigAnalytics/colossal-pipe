@@ -43,7 +43,7 @@ public static class AnalysisReducer extends BaseReducer<ReportRecord, ReportReco
         ReportRecord out = null;
         for (ReportRecord rec : in) {
             if (out == null) {
-                out = in;
+                RecordUtils.copy(in, out);
             } else {
                 out.count++;
             }
