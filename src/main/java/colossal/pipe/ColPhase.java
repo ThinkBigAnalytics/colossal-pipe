@@ -565,7 +565,7 @@ public class ColPhase {
     }
 
     public String getSummary() {
-        return "mapper " + getMapName() + " reading " + mainReads.get(0).getPath() + " reducer " + getReduceName();
+        return "mapper " + getMapName() + " reading " + phaseReads() + " reducer " + getReduceName();
     }
 
     private String getReduceName() {
@@ -577,9 +577,17 @@ public class ColPhase {
     }
 
     private String getDetail() {
-        return String.format("map: %s\nreduce: %s\nreading: %s\nwriting: %s\ngroup by:%s%s", getMapName(), getReduceName(), mainReads
-                .get(0).getPath(), mainWrites.get(0).getPath(), groupBy, (sortBy == null ? "" : "\nsort by:"+sortBy));
+        return String.format("map: %s\nreduce: %s\nreading: %s\nwriting: %s\ngroup by:%s%s", getMapName(), getReduceName(), phaseReads(), 
+                mainWrites.get(0).getPath(), groupBy, (sortBy == null ? "" : "\nsort by:"+sortBy));
     }
 
+    private String phaseReads() {
+        StringBuilder reading = new StringBuilder();
+        for (ColFile read : mainReads) {
+            if (reading.length()>0) reading.append(',');
+            reading.append(read.getPath());
+        }
+        return reading.toString();
+    }
 
 }
