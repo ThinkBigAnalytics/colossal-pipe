@@ -537,7 +537,10 @@ public class ColPhase {
         ArrayList<Schema.Field> fieldList = new ArrayList<Schema.Field>(fields.size());
         StringBuilder builder = new StringBuilder();
         String missing = null;
+        Set<String> held = new TreeSet<String>();
         for (String fieldname : fields) {
+            if (held.contains(fieldname)) continue;
+            held.add(fieldname);
             Schema.Field field = schema.getField(fieldname.trim());
             if (field == null) {
                 if (missing == null) { 

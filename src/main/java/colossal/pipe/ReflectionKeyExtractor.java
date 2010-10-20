@@ -44,6 +44,7 @@ public class ReflectionKeyExtractor<OUT> implements KeyExtractor<GenericData.Rec
     public static void addFieldnames(List<String> fieldNames, String[] groupFields) {
         for (String name : groupFields) {
             String[] parts = name.trim().split("\\s", 2); // skip asc/desc
+            if (fieldNames.contains(parts[0])) continue;
             fieldNames.add(parts[0]);            
         }
     }
