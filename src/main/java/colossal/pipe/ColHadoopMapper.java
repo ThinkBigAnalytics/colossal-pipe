@@ -126,7 +126,7 @@ public class ColHadoopMapper<KEY, VALUE, IN, OUT, KO, VO> extends MapReduceBase 
             mapper.map((IN)((Text)value).toString(), out, context);
         } else if (isJsonInput) {
             String json = ((Text)value).toString();
-            if (json.startsWith("#")) return; // skip comment
+            if (shouldSkip(json)) return;
             // inefficient implementation of json to avro...
             // more efficient would be JsonToClass.jsonToRecord:
             //            mapper.map((IN) JsonToClass.jsonToRecord(json, inSchema), out, context);
@@ -148,6 +148,16 @@ public class ColHadoopMapper<KEY, VALUE, IN, OUT, KO, VO> extends MapReduceBase 
         } else {
             mapper.map(((AvroWrapper<IN>)wrapper).datum(), out, context);
         }
+    }
+
+    private boolean shouldSkip(String json) {
+        int i;
+        int len = json.length();
+        for (i=0; i<len; i++)
+            if (!Character.isWhitespace(json.charAt(i)))
+                break;
+        if (i==len) return true; //blank line
+        return (json.charAt(i)=='#' || json.charAt(i)=='/' && len>(i+1) && json.charAt(i+1)=='/'); // skip comments
     }
 
     @Override
