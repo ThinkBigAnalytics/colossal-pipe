@@ -99,6 +99,20 @@ public class PipePlanTests {
         assertEquals(1, np.size());
         assertTrue(np.contains(p1));
     }
+    
+    @Test
+    public void duplicateFiles() {
+        ColFile<String> f1p = ColFile.of("").at(f1.getPath()); 
+        fileCreateWith(f1, p1);
+        fileCreateWith(f1p, p2);
+        
+        plan.processReads(p1, f2);
+        plan.processReads(p2, f3);
+        plan.plan();
+        List<ColPhase> np = plan.getNextProcesses();
+        assertTrue(np.contains(p1) || np.contains(p2));
+        assertEquals(1, np.size());        
+    }
 
     private void fileCreateWith(ColFile f, ColPhase p) {
         plan.fileCreateWith(f, p);

@@ -27,6 +27,7 @@ import org.apache.hadoop.fs.*;
 import org.apache.hadoop.mapred.*;
 
 public class ColFile<T> {
+
     private ColPhase producer;
     private String path;
     private T prototype;
@@ -219,6 +220,35 @@ public class ColFile<T> {
     }
 
     public void setupInput(JobConf conf) {
-        format.setupInput(conf);// TODO Auto-generated method stub        
+        format.setupInput(conf);        
+    }
+    
+    // files at the same location are deemed equal, however
+    // ColPipe needs to warn if there are inconsistencies
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        ColFile other = (ColFile) obj;
+        if (path == null) {
+            if (other.path != null)
+                return false;
+        }
+        else if (!path.equals(other.path))
+            return false;
+        return true;
+    }
+    
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((path == null) ? 0x123c67ce : path.hashCode());
+        return result;
     }
 }
