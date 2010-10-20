@@ -424,9 +424,9 @@ public class ColPhase {
             errors.add(new PhaseError("No map input defined"));
         }
 
-        // TODO: add support for sortBy
-        if (groupBy != null)
-            conf.set(MAP_OUT_KEY_SCHEMA, group(mapValueSchema, groupBy).toString());
+        if (groupBy != null || sortBy != null) {
+            conf.set(MAP_OUT_KEY_SCHEMA, group(mapValueSchema, groupBy, sortBy).toString());
+        }
         if (groupBy != null) {
             conf.set(GROUP_BY, groupBy);
             AvroJob.setOutputMeta(conf, GROUP_BY, groupBy);
@@ -516,23 +516,45 @@ public class ColPhase {
     /**
      * create a schema containing just the listed comma-separated fields
      */
-    public static Schema group(Schema schema, String fields) {
-        return groupFields(schema, fields.split(","));
+    public static Schema group(Schema schema, String... fields) {
+        List<String> fieldList = new ArrayList<String>(fields.length);
+        for (String list : fields) {
+            if (list == null) continue;
+            for (String field : list.split(",")) {
+                field = field.trim();
+                String[] parts = field.split("\\s");
+                if (parts.length>0) {
+                    fieldList.add(parts[0]);
+                }
+            }
+        }
+
+
+        return group(schema, fieldList);
     }
 
-    public static Schema groupFields(Schema schema, String... fields) {
-        return groupFields(schema, Arrays.asList(fields));
-    }
-
-    public static Schema groupFields(Schema schema, List<String> fields) {
+    public static Schema group(Schema schema, List<String> fields) {
         ArrayList<Schema.Field> fieldList = new ArrayList<Schema.Field>(fields.size());
         StringBuilder builder = new StringBuilder();
+        String missing = null;
         for (String fieldname : fields) {
             Schema.Field field = schema.getField(fieldname.trim());
+            if (field == null) {
+                if (missing == null) { 
+                    missing = "Invalid group by/sort by - fields not in map output record are: ";
+                } else {
+                    missing += ", ";
+                }
+                missing += fieldname.trim();
+                continue;
+            }
             Schema.Field copy = new Schema.Field(fieldname, field.schema(), field.doc(), field.defaultValue(), field.order());
             fieldList.add(copy);
             builder.append('_');
             builder.append(fieldname);
+        }
+        if (missing != null) {
+            throw new IllegalArgumentException(missing);
         }
         schema = Schema.createRecord(schema.getName() + "_proj" + builder.toString(), "generated", schema.getNamespace(), false);
         schema.setFields(fieldList);
