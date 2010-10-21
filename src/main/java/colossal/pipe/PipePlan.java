@@ -86,6 +86,8 @@ class PipePlan {
                     if (canRemove) {
                         wave.add(file);
                     }
+                } else {
+                    toPlan.remove(file); // already being built...
                 }
             }
             if (wave.isEmpty() && executing.isEmpty()) {
@@ -116,8 +118,8 @@ class PipePlan {
         return (waves==null || waves.isEmpty()) ? null : Collections.unmodifiableList(waves.get(0));
     }
 
-    public synchronized void executing(ColPhase process) {
-        executing.add(process);        
+    public synchronized boolean executing(ColPhase process) {
+        return executing.add(process);        
     }
 
     public synchronized boolean isComplete() {

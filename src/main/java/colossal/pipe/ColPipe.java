@@ -33,7 +33,7 @@ import colossal.util.EmailAlerter;
 
 public class ColPipe {
     private List<ColFile> writes;
-    private int parallelTasks = 1;
+    private int parallelPhases = 1;
     private JobConf baseConf = new JobConf();
     private Alerter alerter = new EmailAlerter();
     private String name = "";
@@ -83,6 +83,15 @@ public class ColPipe {
         return this;        
     }
 
+    public ColPipe parallelPhases(int parallelPhases) {
+        this.parallelPhases = parallelPhases;
+        return this;
+    }
+
+    public int getParallelPhases() {
+        return parallelPhases;
+    }
+
     public void execute() throws InfeasiblePlanException {
         List<PhaseError> result = new ArrayList<PhaseError>();
         PipePlan plan = generatePlan(result);
@@ -105,7 +114,7 @@ public class ColPipe {
     }
 
     private List<PhaseError> execute(final PipePlan plan, List<PhaseError> errors) {
-        ExecutorService execution = Executors.newFixedThreadPool(parallelTasks);
+        ExecutorService execution = Executors.newFixedThreadPool(parallelPhases);
         submit(plan, execution, Collections.synchronizedList(errors));
         
         try {
@@ -124,35 +133,37 @@ public class ColPipe {
         return errors;
     }
 
+    int submission = 0;
     private List<PhaseError> submit(final PipePlan plan, final ExecutorService execution, final List<PhaseError> errors) {
         List<ColPhase> next = plan.getNextProcesses();
         if (next != null) {        
             for (final ColPhase process : next) {
-                execution.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        plan.executing(process);
-                        try {
-                            PhaseError error = process.submit();
-                            if (error != null) {
-                                errors.add(error);
-                                // alert immediately
-                                System.err.println("Phase failed: " + error.getMessage());
-                                plan.failed(process);
-                            }
-                            else {
-                                plan.updated(process);
-                                plan.plan();
-                                submit(plan, execution, Collections.synchronizedList(errors));                            
-                            }
-                        } finally {
-                            synchronized(plan) {
-                                plan.notify();
+                if (plan.executing(process)) {
+                    execution.submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                PhaseError error = process.submit();
+                                if (error != null) {
+                                    errors.add(error);
+                                    // alert immediately
+                                    System.err.println("Phase failed: " + error.getMessage());
+                                    plan.failed(process);
+                                }
+                                else {
+                                    plan.updated(process);
+                                    plan.plan();
+                                    submit(plan, execution, Collections.synchronizedList(errors));                            
+                                }
+                            } finally {
+                                synchronized(plan) {
+                                    plan.notify();
+                                }
                             }
                         }
-                    }
-    
-                });
+        
+                    });
+                }
             }
         }
         return errors;
@@ -225,14 +236,6 @@ public class ColPipe {
             }
         }
         return plan;
-    }
-
-    public void setParallelTasks(int parallelTasks) {
-        this.parallelTasks = parallelTasks;
-    }
-
-    public int getParallelTasks() {
-        return parallelTasks;
     }
 
     public String getName() {
