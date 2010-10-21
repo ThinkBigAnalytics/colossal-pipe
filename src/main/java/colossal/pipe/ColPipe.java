@@ -19,9 +19,7 @@
  */
 package colossal.pipe;
 
-import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -31,9 +29,10 @@ import org.apache.hadoop.mapred.JobConf;
 import colossal.util.Alerter;
 import colossal.util.EmailAlerter;
 
+@SuppressWarnings("deprecation")
 public class ColPipe {
     private List<ColFile> writes;
-    private int parallelPhases = 1;
+    private int parallelPhases = 2; // default to 2 phases at once - use concurrency (also speeds up local running)    
     private JobConf baseConf = new JobConf();
     private Alerter alerter = new EmailAlerter();
     private String name = "";
@@ -41,8 +40,7 @@ public class ColPipe {
 
     public ColPipe() {        
     }
-    
-    @SuppressWarnings("deprecation")
+        
     public ColPipe(Class<?> jarClass) {
         baseConf.setJarByClass(jarClass);
         baseConf.set("mapred.job.reuse.jvm.num.tasks", "-1");
