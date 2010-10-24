@@ -53,8 +53,10 @@ public class BaseOptions {
     public String duration;
     
     @Option(name = "-f", aliases = { "--force", "--rebuild" }, usage="Force re-computing (ignore existing files)")
-    public Boolean forceRebuild;
-    // will args4j support subclassed options?! - if need we'll have to add it
+    public boolean forceRebuild;
+
+    @Option(name = "--dry-run", usage="Print plan, but don't execute it")
+    public boolean dryRun;
 
     public int parse(ColPipe pipeline, String... args) {
         JobConf conf = pipeline.getConf();
@@ -89,8 +91,11 @@ public class BaseOptions {
     // constant Z means UTC
     private static DateTimeFormatter timeFormatters[] = {
         DateTimeFormat.forPattern("y-M-d'T'HHmmss'Z'").withZone(DateTimeZone.UTC),
-        DateTimeFormat.forPattern("y-M-d'T'HH:mm:ss'Z'").withZone(DateTimeZone.UTC)
+        DateTimeFormat.forPattern("y-M-d'T'HH:mm:ss'Z'").withZone(DateTimeZone.UTC),
+        DateTimeFormat.forPattern("y-M-d'T'HHmmss"),
+        DateTimeFormat.forPattern("y-M-d'T'HH:mm:ss")
     };
+    
     public Interval getInterval() {
         if (time != null) {
             String[] parts = time.split("/");

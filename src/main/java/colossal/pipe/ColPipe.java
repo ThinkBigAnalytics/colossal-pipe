@@ -99,9 +99,9 @@ public class ColPipe {
                 execute(plan, result);
             }
         }
-        respond(result);
+        respond(result);        
     }
-
+    
     private void respond(List<PhaseError> result) {
         if (!result.isEmpty()) {
             alerter.alert(result);
@@ -242,6 +242,20 @@ public class ColPipe {
 
     public JobConf getConf() {
         return baseConf;
+    }
+
+    public void dryRun() throws InfeasiblePlanException {
+        List<PhaseError> result = new ArrayList<PhaseError>();
+        PipePlan plan = generatePlan(result);
+        if (result.isEmpty()) {
+            plan = optimize(plan, result);
+        }
+        if (!result.isEmpty()) {
+            System.out.println("Plan errors:");
+            for (PhaseError e : result) {
+                System.out.println(e.getMessage());
+            }
+        }
     }
 
 }
