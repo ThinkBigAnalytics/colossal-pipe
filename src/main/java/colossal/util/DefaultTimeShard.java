@@ -20,9 +20,22 @@
 package colossal.util;
 
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
-public interface TimeShard {
-    public String makePath(DateTime ts);
+public class DefaultTimeShard implements TimeShard {
 
-    public String makeTimestamp(DateTime start, DateTime end);
+    private static DateTimeFormatter pathFormatter = DateTimeFormat.forPattern("y/MM/dd/HH").withZone(DateTimeZone.UTC);
+    private static DateTimeFormatter tsFormatter = DateTimeFormat.forPattern("y-M-d'T'HHmmssZ").withZone(DateTimeZone.UTC);
+
+    public String makePath(DateTime ts) {
+        return pathFormatter.print(ts);
+    }
+
+    public String makeTimestamp(DateTime start, DateTime end) {
+        // ISO uses / for duration separation - that doesn't work for a file path so we use .
+        return ".ts." + tsFormatter.print(start) + "." + tsFormatter.print(end);
+    }
+
 }
