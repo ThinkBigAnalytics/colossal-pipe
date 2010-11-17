@@ -34,6 +34,7 @@ import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.codehaus.jackson.JsonParseException;
 
 import colossal.pipe.formats.JsonToClass;
 
@@ -53,6 +54,8 @@ public class ColHadoopMapper<KEY, VALUE, IN, OUT, KO, VO> extends MapReduceBase 
     private boolean isStringInput = false;
     private boolean isJsonInput = false;
     private Schema inSchema;
+    private int parseErrors = 0;
+    private int maxAllowedErrors = 1000;
 
     @SuppressWarnings("unchecked")
     public void configure(JobConf conf) {
@@ -132,19 +135,26 @@ public class ColHadoopMapper<KEY, VALUE, IN, OUT, KO, VO> extends MapReduceBase 
             //            mapper.map((IN) JsonToClass.jsonToRecord(json, inSchema), out, context);
 
             // silly conversion approach - serialize then deserialize
-            GenericContainer c = JsonToGenericRecord.jsonToRecord(json, inSchema);
-            GenericDatumWriter<GenericContainer> writer = new GenericDatumWriter<GenericContainer>(inSchema);
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            writer.setSchema(inSchema);
-            writer.write(c, new BinaryEncoder(bos));           
-            byte[] data = bos.toByteArray();
-
-            GenericDatumReader<IN> reader = new SpecificDatumReader<IN>(inSchema);
-            reader.setSchema(inSchema);
-
-            IN converted = reader.read(null, DecoderFactory.defaultFactory().createBinaryDecoder(data, null));
-
-            mapper.map(converted, out, context);
+            try {
+                GenericContainer c = JsonToGenericRecord.jsonToRecord(json, inSchema);
+                GenericDatumWriter<GenericContainer> writer = new GenericDatumWriter<GenericContainer>(inSchema);
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                writer.setSchema(inSchema);
+                writer.write(c, new BinaryEncoder(bos));           
+                byte[] data = bos.toByteArray();
+    
+                GenericDatumReader<IN> reader = new SpecificDatumReader<IN>(inSchema);
+                reader.setSchema(inSchema);
+    
+                IN converted = reader.read(null, DecoderFactory.defaultFactory().createBinaryDecoder(data, null));
+    
+                mapper.map(converted, out, context);
+            } catch (JsonParseException jpe) {
+                reporter.incrCounter("ColHadoopMapper", "json-parse-error", 1L);
+                if (++parseErrors > maxAllowedErrors) {
+                    throw new RuntimeException(jpe);
+                }
+            }
         } else {
             mapper.map(((AvroWrapper<IN>)wrapper).datum(), out, context);
         }
