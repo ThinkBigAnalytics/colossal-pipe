@@ -76,4 +76,8 @@ public class ColContext<OUT> {
         reporter.incrCounter(counter, 1L);
     }
 
+    public void incrCounter(String group, String counter) {
+        reporter.incrCounter(group, counter, 1L);        
+    }
+
 }

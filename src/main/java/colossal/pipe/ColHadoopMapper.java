@@ -55,6 +55,7 @@ public class ColHadoopMapper<KEY, VALUE, IN, OUT, KO, VO> extends MapReduceBase 
     private boolean isJsonInput = false;
     private Schema inSchema;
     private int parseErrors = 0;
+    //TODO: make this configurable
     private int maxAllowedErrors = 1000;
 
     @SuppressWarnings("unchecked")
@@ -150,6 +151,7 @@ public class ColHadoopMapper<KEY, VALUE, IN, OUT, KO, VO> extends MapReduceBase 
     
                 mapper.map(converted, out, context);
             } catch (JsonParseException jpe) {
+                System.err.println("Failed to parse "+json+": "+jpe.getMessage());
                 reporter.incrCounter("ColHadoopMapper", "json-parse-error", 1L);
                 if (++parseErrors > maxAllowedErrors) {
                     throw new RuntimeException(jpe);

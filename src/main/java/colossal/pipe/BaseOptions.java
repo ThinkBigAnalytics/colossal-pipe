@@ -58,6 +58,9 @@ public class BaseOptions {
     @Option(name = "--dry-run", usage="Print plan, but don't execute it")
     public boolean dryRun;
 
+    @Option(name = "--work-dir", aliases = { "-w" }, usage="Specify work directory")
+    public String workDir;
+    
     public int parse(ColPipe pipeline, String... args) {
         JobConf conf = pipeline.getConf();
         String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
@@ -159,4 +162,14 @@ public class BaseOptions {
         return null;
     }
 
+    private static final String DFS_TMP = "/dfs/tmp/";
+    
+    public String getWorkDir() {
+        if (workDir != null) {
+            return workDir;
+        } else {
+            String user = System.getProperty("user.name");
+            return DFS_TMP+user;
+        }
+    }    
 }
