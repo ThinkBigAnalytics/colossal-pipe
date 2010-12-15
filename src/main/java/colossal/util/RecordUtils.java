@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
 import org.apache.avro.Schema;
+import org.apache.avro.util.Utf8;
 
 public class RecordUtils {
 
@@ -24,7 +25,18 @@ public class RecordUtils {
                 for (Field f : level.getDeclaredFields()) {
                     f.setAccessible(true);
                     if (!Modifier.isStatic(f.getModifiers())) {
-                        f.set(to, f.get(from));
+                    	Object o = f.get(from);
+                    	if(o instanceof Utf8){
+                    		Utf8 old = (Utf8)o;
+                        	int len = old.getByteLength();
+                        	 byte[] copy = new byte[len];
+                        	 System.arraycopy(old.getBytes(), 0, copy, 0, len);
+                        	 Utf8 deepCopy = new Utf8(copy);
+                        	 f.set(to, deepCopy);
+                    	}else{
+                    		 f.set(to, o);	
+                    	}
+                       
                     }
                 }
                 level = level.getSuperclass();
