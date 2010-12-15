@@ -73,7 +73,9 @@ class PipePlan {
         // this doesn't specify exact scheduling as processes finish but provides more parallelism than pure serial operation 
         while (!toPlan.isEmpty()) {
             Set<ColFile> wave = new HashSet<ColFile>();
-            for (ColFile file : toPlan) {
+            Iterator<ColFile> it = toPlan.iterator();
+            while (it.hasNext()) {
+                ColFile file = it.next();
                 ColPhase process = fileDeps.get(file);
                 if (!executing.contains(process)) {
                     boolean canRemove = true;
@@ -87,7 +89,7 @@ class PipePlan {
                         wave.add(file);
                     }
                 } else {
-                    toPlan.remove(file); // already being built...
+                    it.remove(); // already being built...
                 }
             }
             if (wave.isEmpty() && executing.isEmpty()) {
