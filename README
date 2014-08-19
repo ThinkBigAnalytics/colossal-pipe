@@ -1,4 +1,7 @@
 The Colossal Pipe Map Reduce Framework
+======================================
+Copyright (C) 2010-2014 Think Big Analytics, Inc. All Rights Reserved.
+
 Colossal Pipe is a new framework for map reduce programming in Java. It’s designed to make it easy to write programs using an OO-style, programming with POJOs. It comes with support for working with pipelines - determining file dependencies and running the phases needed to emit the corresponding results. The framework is still in alpha test, but we’d love you to try it and give us feedback.
 
 Key concepts:

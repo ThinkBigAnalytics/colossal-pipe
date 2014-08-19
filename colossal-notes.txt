@@ -1,3 +1,7 @@
+The Colossal Pipe Map Reduce Framework Notes
+============================================
+Copyright (C) 2010-2014 Think Big Analytics, Inc. All Rights Reserved.
+
 Functionality:  
 error support: cleanup output and emit meaningful alerts (partially done)
 when phases fail

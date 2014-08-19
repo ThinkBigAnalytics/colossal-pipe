@@ -1,3 +1,5 @@
+// Copyright (C) 2010-2014 Think Big Analytics, Inc. All Rights Reserved.
+//
 // Colossal pipe build script - uses Gradle 0.9
 // to build: gradle jar
 apply plugin: 'java'
